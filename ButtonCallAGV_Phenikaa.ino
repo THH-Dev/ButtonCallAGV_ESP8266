@@ -2,16 +2,17 @@
 #include <ESP8266HTTPClient.h>
 #include <ArduinoJson.h>
 
-const char* ssid = "THH_KINHDOANH";
+const char* ssid = "THH-AGV";
 const char* password = "302phuvien";
 
-const int LED_PIN = 2; // Chân kết nối với đèn báo
+const int LED_PIN = 2;  // Chân kết nối với đèn báo
 
 WiFiClient client;
 HTTPClient http;
+bool wifiConnected = false;
 
 void setup() {
-  pinMode(LED_PIN, OUTPUT); // Cấu hình chân kết nối đèn báo là OUTPUT
+  pinMode(LED_PIN, OUTPUT);  // Cấu hình chân kết nối đèn báo là OUTPUT
   digitalWrite(LED_PIN, HIGH);
   Serial.begin(115200);
   Serial.println("Connecting to WiFi...");
@@ -22,47 +23,38 @@ void setup() {
   }
   Serial.println("");
   Serial.println("WiFi connected");
-  
+  wifiConnected = true;
 }
 
 void loop() {
-  // Kết nối đến máy chủ
-  http.begin(client, "http://192.168.100.127:8182/rcms/services/rest/hikRpcService/genAgvSchedulingTask");
+
+  ReconnectWifi();
+
 
   if (digitalRead(0) == 0) {
     delay(150);
     if (digitalRead(0) == 1) {
 
-      // Tạo đối tượng JSON và chuyển đổi thành chuỗi JSON
-      StaticJsonDocument<200> doc;
-      doc["reqTime"] = "";
-      doc["taskTyp"] = "nhiemvu1";
-      JsonArray positionCodePath = doc.createNestedArray("positionCodePath");
-      JsonObject positionCode1 = positionCodePath.createNestedObject();
-      positionCode1["positionCode"] = "kho2";
-      positionCode1["type"] = "00";
-      JsonObject positionCode2 = positionCodePath.createNestedObject();
-      positionCode2["positionCode"] = "kho1";
-      positionCode2["type"] = "00";
-      doc["podCode"] = "100100";
-      doc["agvCode"] = "8267";
-      doc["taskCode"] = "1234567891";
-      String jsonString;
-      serializeJson(doc, jsonString);
+      http.begin(client, "http://10.68.86.101/api/Remote/Task/DangKyStation?args=5");
 
-      // Gửi yêu cầu POST và chuỗi JSON đến máy chủ
-      int httpResponseCode = http.POST(jsonString);
+      http.addHeader("Content-Type", "application/json");
+
+      // Tạo nội dung yêu cầu(của phenikaa để trống)
+      String requestBody = "{}";
+
+      // Gửi yêu cầu POST với nội dung được định dạng là JSON
+      int httpResponseCode = http.POST(requestBody);
 
       // Kiểm tra mã trạng thái HTTP trả về từ máy chủ
       if (httpResponseCode > 0) {
-        
+
         Serial.print("HTTP Response code: ");
         Serial.println(httpResponseCode);
         String response = http.getString();
         Serial.print("Server Response : ");
         Serial.println(response);
-        blinkLED(5); // Server Resonse bật đèn báo
-        
+        blinkLED(3);  // Server Resonse bật đèn báo
+
 
       } else {
         Serial.print("Error code: ");
@@ -73,7 +65,28 @@ void loop() {
       http.end();
     }
   }
-  
+}
+
+// Kết nối lại khi bị mất kết nối wifi
+void ReconnectWifi() {
+  if (wifiConnected) {
+    // Kiểm tra kết nối WiFi
+    if (WiFi.status() != WL_CONNECTED) {
+      Serial.println("WiFi connection lost");
+      wifiConnected = false;
+    }
+  } else {
+    // Kết nối lại WiFi nếu mất kết nối
+    Serial.println("Reconnecting to WiFi...");
+    WiFi.reconnect();
+    while (WiFi.status() != WL_CONNECTED) {
+      delay(500);
+      Serial.print(".");
+    }
+    Serial.println("");
+    Serial.println("WiFi reconnected");
+    wifiConnected = true;
+  }
 }
 
 // Tạo hàm nhấp nháy đèn báo
@@ -81,10 +94,10 @@ void blinkLED(int count) {
   if (count > 0) {
     // Bật đèn báo
     digitalWrite(LED_PIN, LOW);
-    delay(500); 
+    delay(500);
     // Tắt đèn báo
     digitalWrite(LED_PIN, HIGH);
-    delay(500); 
+    delay(500);
     blinkLED(count - 1);
   }
 }
